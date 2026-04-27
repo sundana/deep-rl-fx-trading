@@ -77,17 +77,19 @@ def build_model(algo: str, env, cfg: dict[str, Any], log_dir: str):
     )
     if algo.upper() == "PPO":
         from stable_baselines3 import PPO
+        net_arch = cfg.get("net_arch", dict(pi=[256, 256], vf=[256, 256]))
         return PPO(
             policy="MlpPolicy",
-            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256])),
+            policy_kwargs=dict(net_arch=net_arch),
             **common,
         )
     elif algo.upper() == "RECURRENTPPO":
         from sb3_contrib import RecurrentPPO
+        net_arch = cfg.get("net_arch", dict(pi=[256], vf=[256]))
         return RecurrentPPO(
             policy="MlpLstmPolicy",
             policy_kwargs=dict(
-                net_arch=dict(pi=[256], vf=[256]),
+                net_arch=net_arch,
                 lstm_hidden_size=cfg.get("lstm_hidden_size", 256),
                 n_lstm_layers=cfg.get("n_lstm_layers", 1),
                 shared_lstm=False,

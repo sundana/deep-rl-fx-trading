@@ -4,7 +4,9 @@
       "Bash(python -c \"import polars, numpy, gymnasium, stable_baselines3; print\\('polars', polars.__version__\\); print\\('gym', gymnasium.__version__\\); print\\('sb3', stable_baselines3.__version__\\)\")",
       "Bash(python -m venv .venv)",
       "Bash(.venv/bin/pip install *)",
-      "Bash(.venv/bin/python -c ' *)"
+      "Bash(.venv/bin/python -c ' *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(tee results/tuning/tune_log.txt)"
     ]
   }
 }
