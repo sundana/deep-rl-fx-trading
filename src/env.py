@@ -71,7 +71,7 @@ class ForexEnv(gym.Env):
         super().reset(seed=seed)
         self._reset_internal()
         if self.cfg.random_start and self.cfg.episode_length:
-            max_start = len(self.data) - self.cfg.episode_length - 1
+            max_start = len(self.data) - self.cfg.episode_length
             if max_start > self.cfg.window_size:
                 self.t = int(self.np_random.integers(self.cfg.window_size, max_start))
                 self.end_t = self.t + self.cfg.episode_length
@@ -79,7 +79,7 @@ class ForexEnv(gym.Env):
 
     def _observation(self) -> np.ndarray:
         window = self.data.features[self.t - self.cfg.window_size : self.t].ravel()
-        price = float(self.data.close[self.t])
+        price = float(self.data.close[self.t - 1])  # last bar in window, not future bar
         unrealized = 0.0
         if self.position != FLAT and self.entry_price > 0:
             unrealized = self.units * (price - self.entry_price) / self.cfg.initial_balance
@@ -123,26 +123,27 @@ class ForexEnv(gym.Env):
 
     def step(self, action: int):
         action = int(action)
-        price = float(self.data.close[self.t])
+        # execute at open[t]: first tradeable price after observing bar t-1 close
+        exec_price = float(self.data.open[self.t])
 
-        prev_equity = self._mark_to_market(price)
+        prev_equity = self._mark_to_market(exec_price)
 
         if action != self.position:
-            self._close_position(price)
+            self._close_position(exec_price)
             if action != FLAT:
-                self._open_position(action, price)
+                self._open_position(action, exec_price)
 
         # advance time
         self.t += 1
         terminated = False
         truncated = False
         if self.t >= self.end_t:
-            # close any open position at final price
-            self._close_position(float(self.data.close[self.t]))
+            # close at close of the bar that just played out
+            self._close_position(float(self.data.close[self.t - 1]))
             terminated = True
 
-        next_price = float(self.data.close[self.t])
-        new_equity = self._mark_to_market(next_price)
+        bar_close = float(self.data.close[self.t - 1])  # close of bar just processed
+        new_equity = self._mark_to_market(bar_close)
         self.equity = new_equity
         self.peak_equity = max(self.peak_equity, new_equity)
 
@@ -159,7 +160,7 @@ class ForexEnv(gym.Env):
         self.history.append(
             {
                 "t": self.t,
-                "price": next_price,
+                "price": bar_close,
                 "equity": new_equity,
                 "balance": self.balance,
                 "position": self.position,

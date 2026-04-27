@@ -163,9 +163,10 @@ def load_market_data(
 
 
 def standardize_with(train: MarketData, *others: MarketData) -> tuple[MarketData, ...]:
-    """Z-score features using stats from `train` only (no leakage)."""
-    mu = train.features.mean(axis=0, keepdims=True)
-    sd = train.features.std(axis=0, keepdims=True) + 1e-8
+    """Z-score features using stats from the first half of `train` only (no leakage)."""
+    n_burnin = max(1, len(train.features) // 2)
+    mu = train.features[:n_burnin].mean(axis=0, keepdims=True)
+    sd = train.features[:n_burnin].std(axis=0, keepdims=True) + 1e-8
 
     def _apply(d: MarketData) -> MarketData:
         return MarketData(
