@@ -42,13 +42,17 @@ class BacktestResult:
 
 
 def run_backtest(model, env: ForexEnv, deterministic: bool = True) -> BacktestResult:
+    from .model_utils import PolicyRunner
+
+    runner = PolicyRunner(model, deterministic=deterministic)
     obs, _ = env.reset()
+    runner.reset()
     done = False
     actions = []
     while not done:
-        action, _ = model.predict(obs, deterministic=deterministic)
-        obs, _, terminated, truncated, _ = env.step(int(action))
-        actions.append(int(action))
+        action = runner.predict(obs)
+        obs, _, terminated, truncated, _ = env.step(action)
+        actions.append(action)
         done = terminated or truncated
 
     history = env.history

@@ -27,9 +27,15 @@ pip install -r requirements.txt
 ## Train
 
 ```bash
-python train.py                          # use config.yaml defaults
+# PPO (default)
+python train.py
 python train.py --timesteps 200000 --n-envs 4
 python train.py --resume models/checkpoints/ppo_forex_500000_steps.zip
+
+# RecurrentPPO (MlpLstmPolicy — override via CLI or set algo: RecurrentPPO in config.yaml)
+python train.py --algo RecurrentPPO
+python train.py --algo RecurrentPPO --timesteps 500000
+
 tensorboard --logdir logs
 ```
 
@@ -46,6 +52,7 @@ The training script:
 ```bash
 python evaluate.py --split val
 python evaluate.py --split test --episodes 5
+python evaluate.py --algo RecurrentPPO --split test
 ```
 
 ## Backtest
@@ -53,6 +60,7 @@ python evaluate.py --split test --episodes 5
 ```bash
 python run_backtest.py --split test
 python run_backtest.py --split all --name oos_full
+python run_backtest.py --algo RecurrentPPO --split test
 ```
 
 Produces `results/<name>_metrics.json` and `results/<name>_equity.png` with:
@@ -80,6 +88,12 @@ Annualization assumes 96 bars/day × 252 days = 24,192 bars/year.
 
 - **PPO**: robust default for discrete control, stable on noisy financial
   rewards, and well-supported in SB3.
+- **RecurrentPPO** (`MlpLstmPolicy` from `sb3-contrib`): adds a shared LSTM
+  layer so the agent can maintain hidden state across steps — useful for
+  detecting trend/regime patterns that span more than the observation window.
+  Typically converges slower but can learn temporal dependencies PPO+MLP
+  cannot. Switch with `--algo RecurrentPPO` or `algo: RecurrentPPO` in
+  `config.yaml`; tune `lstm_hidden_size` and `n_lstm_layers` there.
 - **Discrete long/flat/short**: cleanest signal-to-action mapping, avoids
   exploding the action space with sizing decisions the value function can't yet
   ground in P&L.

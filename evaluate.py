@@ -5,17 +5,19 @@ import argparse
 
 import numpy as np
 import yaml
-from stable_baselines3 import PPO
 
 from src.backtest import print_report, run_backtest
 from src.data_loader import load_market_data, split_data, standardize_with
 from src.env import EnvConfig, ForexEnv
+from src.model_utils import load_model
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--model", default=None, help="Defaults to paths.best_model.")
+    parser.add_argument("--algo", choices=["PPO", "RecurrentPPO"], default=None,
+                        help="Override train.algo in config.")
     parser.add_argument("--split", choices=["val", "test", "train"], default="val")
     parser.add_argument("--episodes", type=int, default=1)
     parser.add_argument("--stochastic", action="store_true")
@@ -24,9 +26,10 @@ def main():
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
 
+    algo = args.algo or cfg["train"]["algo"]
     model_path = args.model or cfg["paths"]["best_model"]
-    print(f"[eval] loading model {model_path}")
-    model = PPO.load(model_path)
+    print(f"[eval] loading {algo} model from {model_path}")
+    model = load_model(model_path, algo=algo)
 
     data = load_market_data(cfg["data"]["csv_path"], separator=cfg["data"]["separator"])
     train_d, val_d, test_d = split_data(

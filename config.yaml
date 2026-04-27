@@ -20,8 +20,8 @@ env:
   hold_penalty: 0.0
 
 train:
+  # algo: PPO or RecurrentPPO
   algo: PPO
-  policy: MlpPolicy
   total_timesteps: 1000000
   n_envs: 8
   n_steps: 2048
@@ -37,6 +37,9 @@ train:
   seed: 42
   eval_freq: 20000
   save_freq: 50000
+  # RecurrentPPO-specific (ignored when algo=PPO)
+  lstm_hidden_size: 256
+  n_lstm_layers: 1
 
 paths:
   model_dir: models
