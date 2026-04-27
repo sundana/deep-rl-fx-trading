@@ -1,0 +1,46 @@
+data:
+  csv_path: data/EURUSD15.csv
+  separator: "\t"
+  train_split: 0.7
+  val_split: 0.15
+  # remaining 0.15 is held-out test for backtest
+
+env:
+  window_size: 64
+  initial_balance: 10000.0
+  # spread + commission per round-trip, in price units (EURUSD pip = 0.0001)
+  transaction_cost_pips: 1.5
+  pip_size: 0.0001
+  # contract size in base units; 1 mini-lot = 10000
+  contract_size: 10000
+  # fraction of equity risked per position
+  position_size: 1.0
+  reward_scaling: 100.0
+  drawdown_penalty: 0.0
+  hold_penalty: 0.0
+
+train:
+  algo: PPO
+  policy: MlpPolicy
+  total_timesteps: 1000000
+  n_envs: 8
+  n_steps: 2048
+  batch_size: 256
+  n_epochs: 10
+  learning_rate: 3.0e-4
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  seed: 42
+  eval_freq: 20000
+  save_freq: 50000
+
+paths:
+  model_dir: models
+  log_dir: logs
+  results_dir: results
+  best_model: models/best_model.zip
+  final_model: models/final_model.zip
