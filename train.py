@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Sequence
 
 import numpy as np
 import torch
@@ -26,9 +27,9 @@ def make_env_factory(data, env_cfg: EnvConfig, seed: int = 0):
 
 
 def build_vec_env(data, env_cfg, n_envs: int, seed: int, subproc: bool = False):
-    factories = [make_env_factory(data, env_cfg, seed + i) for i in range(n_envs)]
+    factories: list = [make_env_factory(data, env_cfg, seed + i) for i in range(n_envs)]
     cls = SubprocVecEnv if (subproc and n_envs > 1) else DummyVecEnv
-    return cls(factories)
+    return cls(list(factories))
 
 
 def main():

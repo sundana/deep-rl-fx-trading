@@ -56,9 +56,9 @@ class PolicyRunner:
         return int(action[0])
 
 
-def build_model(algo: str, env, cfg: dict, log_dir: str):
+def build_model(algo: str, env, cfg: dict[str, Any], log_dir: str):
     """Instantiate a fresh PPO or RecurrentPPO from config."""
-    common = dict(
+    common: dict[str, Any] = dict(
         env=env,
         learning_rate=cfg["learning_rate"],
         n_steps=cfg["n_steps"],
@@ -72,13 +72,14 @@ def build_model(algo: str, env, cfg: dict, log_dir: str):
         max_grad_norm=cfg["max_grad_norm"],
         tensorboard_log=log_dir,
         seed=cfg["seed"],
+        device=cfg["device"],
         verbose=1,
     )
     if algo.upper() == "PPO":
         from stable_baselines3 import PPO
         return PPO(
             policy="MlpPolicy",
-            policy_kwargs=dict(net_arch=[256, 256]),
+            policy_kwargs=dict(net_arch=dict(pi=[256, 256], vf=[256, 256])),
             **common,
         )
     elif algo.upper() == "RECURRENTPPO":
@@ -86,7 +87,7 @@ def build_model(algo: str, env, cfg: dict, log_dir: str):
         return RecurrentPPO(
             policy="MlpLstmPolicy",
             policy_kwargs=dict(
-                net_arch=[dict(pi=[256], vf=[256])],
+                net_arch=dict(pi=[256], vf=[256]),
                 lstm_hidden_size=cfg.get("lstm_hidden_size", 256),
                 n_lstm_layers=cfg.get("n_lstm_layers", 1),
                 shared_lstm=False,
