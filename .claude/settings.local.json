@@ -6,7 +6,10 @@
       "Bash(.venv/bin/pip install *)",
       "Bash(.venv/bin/python -c ' *)",
       "Bash(.venv/bin/python *)",
-      "Bash(tee results/tuning/tune_log.txt)"
+      "Bash(tee results/tuning/tune_log.txt)",
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(conda run *)"
     ]
   }
 }

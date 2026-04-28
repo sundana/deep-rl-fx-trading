@@ -68,6 +68,8 @@ def main():
         reward_scaling=cfg["env"]["reward_scaling"],
         drawdown_penalty=cfg["env"]["drawdown_penalty"],
         hold_penalty=cfg["env"]["hold_penalty"],
+        max_drawdown_pct=cfg["env"].get("max_drawdown_pct", 0.0),
+        trade_penalty=cfg["env"].get("trade_penalty", 0.0),
         random_start=True,
         episode_length=min(20_000, len(train_d) - cfg["env"]["window_size"] - 2),
     )

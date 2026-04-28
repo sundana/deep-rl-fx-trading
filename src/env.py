@@ -31,6 +31,10 @@ class EnvConfig:
     reward_scaling: float = 100.0
     drawdown_penalty: float = 0.0
     hold_penalty: float = 0.0
+    # terminate episode if drawdown from peak exceeds this fraction (0 = disabled)
+    max_drawdown_pct: float = 0.0
+    # penalty applied each time position flips (discourages overtrading)
+    trade_penalty: float = 0.0
     random_start: bool = True
     episode_length: int | None = None
 
@@ -128,7 +132,8 @@ class ForexEnv(gym.Env):
 
         prev_equity = self._mark_to_market(exec_price)
 
-        if action != self.position:
+        traded = action != self.position
+        if traded:
             self._close_position(exec_price)
             if action != FLAT:
                 self._open_position(action, exec_price)
@@ -151,11 +156,17 @@ class ForexEnv(gym.Env):
         ret = np.log(max(new_equity, 1e-6) / max(prev_equity, 1e-6))
         reward = ret * self.cfg.reward_scaling
 
+        if traded and self.cfg.trade_penalty:
+            reward -= self.cfg.trade_penalty
         if self.cfg.hold_penalty and self.position == FLAT:
             reward -= self.cfg.hold_penalty
         if self.cfg.drawdown_penalty:
             dd = (self.peak_equity - new_equity) / self.peak_equity
             reward -= self.cfg.drawdown_penalty * dd
+        if self.cfg.max_drawdown_pct:
+            dd = (self.peak_equity - new_equity) / self.peak_equity
+            if dd >= self.cfg.max_drawdown_pct:
+                terminated = True
 
         self.history.append(
             {
