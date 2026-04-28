@@ -4,3 +4,4 @@ models/*
 logs/*
 .venv/
 results/*
+*.log
