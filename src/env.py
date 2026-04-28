@@ -35,6 +35,11 @@ class EnvConfig:
     max_drawdown_pct: float = 0.0
     # penalty applied each time position flips (discourages overtrading)
     trade_penalty: float = 0.0
+    # minimum bars to hold before switching; exiting earlier applies early_exit_penalty
+    min_hold_bars: int = 0
+    early_exit_penalty: float = 0.5
+    # small per-bar bonus for holding a profitable position (encourages letting winners run)
+    hold_bonus_per_bar: float = 0.0
     random_start: bool = True
     episode_length: int | None = None
 
@@ -50,7 +55,8 @@ class ForexEnv(gym.Env):
             raise ValueError("Data shorter than window size.")
 
         self.n_features = data.features.shape[1]
-        obs_dim = self.cfg.window_size * self.n_features + 2  # + position + unrealized pnl
+        # +3: position, unrealized pnl, bars_in_trade (normalized)
+        obs_dim = self.cfg.window_size * self.n_features + 3
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
         )
@@ -66,6 +72,7 @@ class ForexEnv(gym.Env):
         self.position = FLAT
         self.entry_price = 0.0
         self.units = 0.0  # signed units of base currency
+        self.bars_in_trade = 0  # bars elapsed since current position was opened
         self.t = self.cfg.window_size
         self.end_t = len(self.data) - 1
         self.history: list[dict] = []
@@ -88,8 +95,10 @@ class ForexEnv(gym.Env):
         if self.position != FLAT and self.entry_price > 0:
             unrealized = self.units * (price - self.entry_price) / self.cfg.initial_balance
         pos_feat = float(POS_VALUE[self.position])
+        # normalize bars_in_trade: 100 bars ≈ 25h on M15, treated as "fully matured"
+        bars_norm = min(self.bars_in_trade, 100) / 100.0
         return np.concatenate(
-            [window, np.array([pos_feat, unrealized], dtype=np.float32)]
+            [window, np.array([pos_feat, unrealized, bars_norm], dtype=np.float32)]
         ).astype(np.float32)
 
     def _close_position(self, price: float) -> float:
@@ -133,10 +142,20 @@ class ForexEnv(gym.Env):
         prev_equity = self._mark_to_market(exec_price)
 
         traded = action != self.position
+        old_position = self.position
+        bars_before_trade = self.bars_in_trade
+
         if traded:
             self._close_position(exec_price)
+            self.bars_in_trade = 0
             if action != FLAT:
                 self._open_position(action, exec_price)
+
+        # track bars held in the current (possibly new) position
+        if self.position != FLAT:
+            self.bars_in_trade += 1
+        else:
+            self.bars_in_trade = 0
 
         # advance time
         self.t += 1
@@ -158,6 +177,16 @@ class ForexEnv(gym.Env):
 
         if traded and self.cfg.trade_penalty:
             reward -= self.cfg.trade_penalty
+
+        # penalize exiting a position before min_hold_bars (costs haven't been amortized)
+        if traded and self.cfg.min_hold_bars > 0 and old_position != FLAT:
+            if bars_before_trade < self.cfg.min_hold_bars:
+                reward -= self.cfg.early_exit_penalty
+
+        # bonus for each bar holding a winning position (let winners run)
+        if self.cfg.hold_bonus_per_bar and self.position != FLAT and new_equity > prev_equity:
+            reward += self.cfg.hold_bonus_per_bar
+
         if self.cfg.hold_penalty and self.position == FLAT:
             reward -= self.cfg.hold_penalty
         if self.cfg.drawdown_penalty:

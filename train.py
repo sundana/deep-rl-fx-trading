@@ -70,10 +70,24 @@ def main():
         hold_penalty=cfg["env"]["hold_penalty"],
         max_drawdown_pct=cfg["env"].get("max_drawdown_pct", 0.0),
         trade_penalty=cfg["env"].get("trade_penalty", 0.0),
+        min_hold_bars=cfg["env"].get("min_hold_bars", 0),
+        early_exit_penalty=cfg["env"].get("early_exit_penalty", 0.5),
+        hold_bonus_per_bar=cfg["env"].get("hold_bonus_per_bar", 0.0),
         random_start=True,
         episode_length=min(20_000, len(train_d) - cfg["env"]["window_size"] - 2),
     )
-    eval_env_cfg = EnvConfig(**{**env_cfg.__dict__, "random_start": False, "episode_length": None})
+    eval_env_cfg = EnvConfig(**{
+        **env_cfg.__dict__,
+        "random_start": False,
+        "episode_length": None,
+        # disable all training-specific shaping during evaluation
+        "drawdown_penalty": 0.0,
+        "max_drawdown_pct": 0.0,
+        "trade_penalty": 0.0,
+        "min_hold_bars": 0,
+        "early_exit_penalty": 0.0,
+        "hold_bonus_per_bar": 0.0,
+    })
 
     # RecurrentPPO only supports n_envs=1 in SubprocVecEnv due to LSTM state handling;
     # DummyVecEnv works fine for any n_envs.

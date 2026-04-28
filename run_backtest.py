@@ -64,8 +64,13 @@ def main():
         contract_size=cfg["env"]["contract_size"],
         position_size=cfg["env"]["position_size"],
         reward_scaling=cfg["env"]["reward_scaling"],
-        drawdown_penalty=cfg["env"]["drawdown_penalty"],
-        hold_penalty=cfg["env"]["hold_penalty"],
+        drawdown_penalty=0.0,        # no penalty shaping during backtest
+        hold_penalty=0.0,
+        max_drawdown_pct=0.0,        # never cut episode short in backtest
+        trade_penalty=0.0,
+        min_hold_bars=0,
+        early_exit_penalty=0.0,
+        hold_bonus_per_bar=0.0,
         random_start=False,
         episode_length=None,
     )
