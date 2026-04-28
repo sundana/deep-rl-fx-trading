@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import warnings
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="stable_baselines
 
 # Number of parallel envs used during each trial (kept fixed to reduce noise)
 N_TUNE_ENVS_PPO = 4
-N_TUNE_ENVS_RPPO = 1  # RecurrentPPO with DummyVecEnv; >1 is fine but adds overhead
+N_TUNE_ENVS_RPPO = 2  # bumped from 1; RecurrentPPO handles n_envs > 1 fine
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +322,10 @@ def main() -> None:
         help="Optional SQLite URL for persistence, e.g. sqlite:///results/tuning/tune.db"
     )
     parser.add_argument("--out-dir", default="results/tuning")
+    parser.add_argument(
+        "--n-jobs", type=int, default=min(4, max(1, os.cpu_count() // 5)),
+        help="Parallel Optuna trials. Default auto-scales to ~1/5 of CPU cores."
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -348,7 +353,7 @@ def main() -> None:
         study = optuna.create_study(
             study_name=study_name,
             storage=args.study_db,
-            sampler=TPESampler(seed=seed, multivariate=True),
+            sampler=TPESampler(seed=seed, constant_liar=args.n_jobs > 1),
             pruner=MedianPruner(n_startup_trials=5, n_warmup_steps=3),
             direction="maximize",
             load_if_exists=True,
@@ -364,9 +369,11 @@ def main() -> None:
             _print_study_summary(study, algo)
             continue
 
+        n_envs = N_TUNE_ENVS_PPO if algo == "PPO" else N_TUNE_ENVS_RPPO
         print(
             f"\n[tune] {algo}: running {remaining} trials "
-            f"({args.timesteps:,} steps each, {N_TUNE_ENVS_PPO if algo == 'PPO' else N_TUNE_ENVS_RPPO} envs)…"
+            f"({args.timesteps:,} steps each, {n_envs} envs, "
+            f"{args.n_jobs} parallel)…"
         )
 
         study.optimize(
@@ -379,6 +386,7 @@ def main() -> None:
                 n_timesteps=args.timesteps,
             ),
             n_trials=remaining,
+            n_jobs=args.n_jobs,
             show_progress_bar=True,
             catch=(Exception,),
         )
