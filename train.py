@@ -73,6 +73,9 @@ def main():
         min_hold_bars=cfg["env"].get("min_hold_bars", 0),
         early_exit_penalty=cfg["env"].get("early_exit_penalty", 0.5),
         hold_bonus_per_bar=cfg["env"].get("hold_bonus_per_bar", 0.0),
+        sharpe_coef=cfg["env"].get("sharpe_coef", 0.0),
+        sharpe_window=cfg["env"].get("sharpe_window", 50),
+        close_profit_bonus=cfg["env"].get("close_profit_bonus", 0.0),
         random_start=True,
         episode_length=min(20_000, len(train_d) - cfg["env"]["window_size"] - 2),
     )
@@ -98,11 +101,25 @@ def main():
 
     model_dir = Path(cfg["paths"]["model_dir"])
     log_dir = Path(cfg["paths"]["log_dir"])
+    results_dir = Path(cfg["paths"]["results_dir"])
     model_dir.mkdir(parents=True, exist_ok=True)
     log_dir.mkdir(parents=True, exist_ok=True)
 
+    # Determine run name to match SB3's TensorBoard auto-numbering
+    algo_class = {"PPO": "PPO", "RECURRENTPPO": "RecurrentPPO"}[algo.upper()]
+    existing_runs = [d for d in log_dir.iterdir() if d.is_dir() and d.name.startswith(f"{algo_class}_")]
+    run_n = len(existing_runs) + 1
+    run_name = f"{algo_class}_{run_n}"
+    print(f"[train] run name: {run_name}")
+
+    run_model_dir = model_dir / run_name
+    run_model_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_dir = run_model_dir / "checkpoints"
+
+    run_results_dir = results_dir / run_name
+    run_results_dir.mkdir(parents=True, exist_ok=True)
+
     prefix = algo.lower()
-    checkpoint_dir = model_dir / "checkpoints"
 
     if args.resume and Path(args.resume).exists():
         print(f"[train] resuming from {args.resume}")
@@ -119,7 +136,7 @@ def main():
         ),
         EvalCallback(
             eval_env,
-            best_model_save_path=str(model_dir),
+            best_model_save_path=str(run_model_dir),
             log_path=str(log_dir / "eval"),
             eval_freq=max(1, cfg["train"]["eval_freq"] // n_envs),
             n_eval_episodes=1,
@@ -131,14 +148,16 @@ def main():
     total = args.timesteps or cfg["train"]["total_timesteps"]
     print(f"[train] starting {algo} for {total} timesteps on {n_envs} envs")
     model.learn(total_timesteps=total, callback=callbacks, progress_bar=True)
-    model.save(cfg["paths"]["final_model"])
-    print(f"[train] saved final model -> {cfg['paths']['final_model']}")
+
+    final_path = run_model_dir / "final_model.zip"
+    model.save(str(final_path))
+    print(f"[train] saved final model -> {final_path}")
 
     print("[eval] quick val backtest…")
     eval_native = ForexEnv(val_d, eval_env_cfg)
     res = run_backtest(model, eval_native, deterministic=True)
     print_report(res)
-    save_report(res, cfg["paths"]["results_dir"], name=f"val_{prefix}_after_train")
+    save_report(res, str(run_results_dir), name="val_after_train")
 
 
 if __name__ == "__main__":

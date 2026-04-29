@@ -17,22 +17,27 @@ env:
   position_size: 0.2
   reward_scaling: 100.0
   drawdown_penalty: 0.2
-  hold_penalty: 0.0
+  hold_penalty: 0.05
   # kill episode if drawdown from peak exceeds 20% (trains capital-preservation reflex)
   max_drawdown_pct: 0.20
   # per-trade penalty discourages overtrading
-  trade_penalty: 0.20
+  trade_penalty: 0.15
   # minimum bars to hold before exiting without penalty (~2h on M15)
   min_hold_bars: 8
   # extra penalty for exiting before min_hold_bars (transaction cost hasn't been amortized)
   early_exit_penalty: 0.5
   # per-bar bonus for holding a winning open position (trains "let winners run")
-  hold_bonus_per_bar: 0.005
+  hold_bonus_per_bar: 0.015
+  # rolling Sharpe reward component (encourages consistent, low-variance returns)
+  sharpe_coef: 0.3
+  sharpe_window: 50
+  # one-time bonus when a position is closed with positive realized PnL
+  close_profit_bonus: 1.0
 
 train:
   # algo: PPO or RecurrentPPO
   algo: RecurrentPPO
-  total_timesteps: 3000000
+  total_timesteps: 1300000
   n_envs: 8
   n_steps: 4096
   batch_size: 256

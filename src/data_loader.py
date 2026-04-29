@@ -16,8 +16,12 @@ FEATURE_COLUMNS = [
     "rsi_14",
     "ema_fast_dev",
     "ema_slow_dev",
+    "ema_200_dev",    # long-term trend context (~weekly on M15)
     "atr_14_norm",
     "bb_pct",
+    "macd_hist",      # trend momentum acceleration
+    "stoch_k",        # range-based overbought/oversold
+    "vol_ratio",      # volume conviction
     "hl_range",
     "oc_range",
     "hour_sin",
@@ -89,6 +93,7 @@ def _add_features(df: pl.DataFrame) -> pl.DataFrame:
     # EMA deviations
     ema_fast = close.ewm_mean(span=12, adjust=False)
     ema_slow = close.ewm_mean(span=48, adjust=False)
+    ema_200 = close.ewm_mean(span=200, adjust=False)
 
     # ATR(14) as % of price
     tr = pl.max_horizontal(
@@ -103,6 +108,20 @@ def _add_features(df: pl.DataFrame) -> pl.DataFrame:
     sd20 = close.rolling_std(window_size=20)
     bb_pct = (close - ma20) / (4.0 * sd20 + 1e-12)
 
+    # MACD histogram (trend momentum acceleration)
+    macd_line = ema_fast - ema_slow
+    macd_signal = macd_line.ewm_mean(span=9, adjust=False)
+    macd_hist = (macd_line - macd_signal) / (close + 1e-12)
+
+    # Stochastic %K (range-based overbought/oversold, centered at 0)
+    low_14 = low.rolling_min(window_size=14)
+    high_14 = high.rolling_max(window_size=14)
+    stoch_k = (close - low_14) / (high_14 - low_14 + 1e-12) - 0.5
+
+    # Volume ratio: log deviation from 20-bar mean (conviction of price moves)
+    vol_ma = pl.col("volume").rolling_mean(window_size=20)
+    vol_ratio = (pl.col("volume") / (vol_ma + 1e-12)).log()
+
     df = df.with_columns(
         log_ret.alias("log_return"),
         log_ret.rolling_sum(window_size=5).alias("ret_5"),
@@ -111,8 +130,12 @@ def _add_features(df: pl.DataFrame) -> pl.DataFrame:
         rsi.alias("rsi_14"),
         ((close - ema_fast) / close).alias("ema_fast_dev"),
         ((close - ema_slow) / close).alias("ema_slow_dev"),
+        ((close - ema_200) / close).alias("ema_200_dev"),
         (atr / close).alias("atr_14_norm"),
         bb_pct.alias("bb_pct"),
+        macd_hist.alias("macd_hist"),
+        stoch_k.alias("stoch_k"),
+        vol_ratio.alias("vol_ratio"),
         ((high - low) / close).alias("hl_range"),
         ((close - open_) / close).alias("oc_range"),
     )

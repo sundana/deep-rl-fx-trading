@@ -40,6 +40,11 @@ class EnvConfig:
     early_exit_penalty: float = 0.5
     # small per-bar bonus for holding a profitable position (encourages letting winners run)
     hold_bonus_per_bar: float = 0.0
+    # rolling Sharpe component: reward += sharpe_coef * (rolling_mean_ret / rolling_std_ret)
+    sharpe_coef: float = 0.0
+    sharpe_window: int = 50
+    # one-time bonus when a position is closed with positive realized PnL
+    close_profit_bonus: float = 0.0
     random_start: bool = True
     episode_length: int | None = None
 
@@ -73,6 +78,7 @@ class ForexEnv(gym.Env):
         self.entry_price = 0.0
         self.units = 0.0  # signed units of base currency
         self.bars_in_trade = 0  # bars elapsed since current position was opened
+        self.recent_rets: list[float] = []  # rolling window for Sharpe bonus
         self.t = self.cfg.window_size
         self.end_t = len(self.data) - 1
         self.history: list[dict] = []
@@ -145,8 +151,9 @@ class ForexEnv(gym.Env):
         old_position = self.position
         bars_before_trade = self.bars_in_trade
 
+        realized_pnl = 0.0
         if traded:
-            self._close_position(exec_price)
+            realized_pnl = self._close_position(exec_price)
             self.bars_in_trade = 0
             if action != FLAT:
                 self._open_position(action, exec_price)
@@ -175,6 +182,16 @@ class ForexEnv(gym.Env):
         ret = np.log(max(new_equity, 1e-6) / max(prev_equity, 1e-6))
         reward = ret * self.cfg.reward_scaling
 
+        # rolling Sharpe bonus — encourages consistent returns over noise
+        if self.cfg.sharpe_coef:
+            self.recent_rets.append(float(ret))
+            if len(self.recent_rets) > self.cfg.sharpe_window:
+                self.recent_rets.pop(0)
+            if len(self.recent_rets) >= 10:
+                arr = np.array(self.recent_rets)
+                sr = arr.mean() / (arr.std() + 1e-8)
+                reward += self.cfg.sharpe_coef * float(sr)
+
         if traded and self.cfg.trade_penalty:
             reward -= self.cfg.trade_penalty
 
@@ -186,6 +203,10 @@ class ForexEnv(gym.Env):
         # bonus for each bar holding a winning position (let winners run)
         if self.cfg.hold_bonus_per_bar and self.position != FLAT and new_equity > prev_equity:
             reward += self.cfg.hold_bonus_per_bar
+
+        # bonus when closing a profitable trade
+        if self.cfg.close_profit_bonus and traded and old_position != FLAT and realized_pnl > 0:
+            reward += self.cfg.close_profit_bonus
 
         if self.cfg.hold_penalty and self.position == FLAT:
             reward -= self.cfg.hold_penalty
