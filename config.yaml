@@ -21,7 +21,7 @@ env:
   # kill episode if drawdown from peak exceeds 20% (trains capital-preservation reflex)
   max_drawdown_pct: 0.20
   # per-trade penalty discourages overtrading
-  trade_penalty: 0.15
+  trade_penalty: 0.2
   # minimum bars to hold before exiting without penalty (~2h on M15)
   min_hold_bars: 8
   # extra penalty for exiting before min_hold_bars (transaction cost hasn't been amortized)
@@ -37,8 +37,8 @@ env:
 train:
   # algo: PPO or RecurrentPPO
   algo: RecurrentPPO
-  total_timesteps: 1300000
-  n_envs: 8
+  total_timesteps: 3000000
+  n_envs: 16
   n_steps: 4096
   batch_size: 256
   n_epochs: 10
@@ -55,10 +55,10 @@ train:
   save_freq: 50000
   # Network architecture: keys pi (policy) and vf (value function)
   net_arch:
-    pi: [128, 128]
-    vf: [128, 128]
+    pi: [256, 256]
+    vf: [256, 256]
   # RecurrentPPO-specific (ignored when algo=PPO)
-  lstm_hidden_size: 128
+  lstm_hidden_size: 256
   n_lstm_layers: 1
 
 paths:

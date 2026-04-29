@@ -83,13 +83,16 @@ def main():
         **env_cfg.__dict__,
         "random_start": False,
         "episode_length": None,
-        # disable all training-specific shaping during evaluation
+        # mirror backtest conditions: pure P&L, no reward shaping
         "drawdown_penalty": 0.0,
         "max_drawdown_pct": 0.0,
+        "hold_penalty": 0.0,
         "trade_penalty": 0.0,
         "min_hold_bars": 0,
         "early_exit_penalty": 0.0,
         "hold_bonus_per_bar": 0.0,
+        "sharpe_coef": 0.0,
+        "close_profit_bonus": 0.0,
     })
 
     # RecurrentPPO only supports n_envs=1 in SubprocVecEnv due to LSTM state handling;
