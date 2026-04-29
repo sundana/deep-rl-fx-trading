@@ -9,7 +9,9 @@
       "Bash(tee results/tuning/tune_log.txt)",
       "Bash(python *)",
       "Bash(pip install *)",
-      "Bash(conda run *)"
+      "Bash(conda run *)",
+      "Bash(python3 -c ' *)",
+      "Bash(python3 *)"
     ]
   }
 }
