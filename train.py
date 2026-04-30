@@ -18,6 +18,36 @@ from src.env import EnvConfig, ForexEnv
 from src.model_utils import build_model, load_model
 
 
+def _filter_data_by_sessions(data, sessions: list[str]) -> object:
+    """Filter data to only include bars in specified sessions (UTC).
+    Sessions can overlap — a bar in overlap hours counts for all active sessions."""
+    import datetime as _dt
+    _SESSIONS = {
+        "asia":    (0,  9),
+        "london":  (7,  16),
+        "newyork": (12, 21),
+    }
+    sessions_set = {s.lower() for s in sessions}
+    mask = np.zeros(len(data.timestamps), dtype=bool)
+    for i, ts in enumerate(data.timestamps):
+        dt = _dt.datetime.utcfromtimestamp(int(ts))
+        for session, (start, end) in _SESSIONS.items():
+            if session in sessions_set and start <= dt.hour < end:
+                mask[i] = True
+                break
+    from src.data_loader import MarketData
+    return MarketData(
+        timestamps=data.timestamps[mask],
+        open=data.open[mask],
+        high=data.high[mask],
+        low=data.low[mask],
+        close=data.close[mask],
+        volume=data.volume[mask],
+        features=data.features[mask],
+        feature_names=data.feature_names,
+    )
+
+
 def make_env_factory(data, env_cfg: EnvConfig, seed: int = 0):
     def _thunk():
         env = ForexEnv(data, env_cfg)
@@ -41,6 +71,8 @@ def main():
     parser.add_argument("--n-envs", type=int, default=None)
     parser.add_argument("--subproc", action="store_true")
     parser.add_argument("--resume", type=str, default=None)
+    parser.add_argument("--session", type=str, default=None,
+                        help="Train on specific sessions only: 'asia', 'london', 'newyork', or comma-separated like 'asia,london'")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -55,6 +87,13 @@ def main():
     print("[data] loading market data…")
     data = load_market_data(cfg["data"]["csv_path"], separator=cfg["data"]["separator"])
     train_d, val_d, _ = split_data(data, cfg["data"]["train_split"], cfg["data"]["val_split"])
+
+    if args.session:
+        sessions = [s.strip().lower() for s in args.session.split(",")]
+        print(f"[data] filtering to sessions: {', '.join(sessions)}")
+        train_d = _filter_data_by_sessions(train_d, sessions)
+        val_d = _filter_data_by_sessions(val_d, sessions)
+
     train_d, val_d = standardize_with(train_d, val_d)
     print(f"[data] train={len(train_d)} bars  val={len(val_d)} bars  features={train_d.features.shape[1]}")
 

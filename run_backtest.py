@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from src.backtest import print_report, run_backtest, save_report
+from src.backtest import filter_by_sessions, print_report, run_backtest, save_report
 from src.data_loader import load_market_data, split_data, standardize_with
 from src.env import EnvConfig, ForexEnv
 from src.model_utils import load_model
@@ -39,6 +39,11 @@ def main():
     parser.add_argument("--split", choices=["val", "test", "train", "all"], default="test")
     parser.add_argument("--name", default=None)
     parser.add_argument("--stochastic", action="store_true")
+    parser.add_argument(
+        "--session", default=None,
+        help="Comma-separated sessions to backtest: asia, london, newyork. "
+             "E.g. --session asia  or  --session asia,london",
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -82,6 +87,11 @@ def main():
     else:
         selected = {"train": train_d, "val": val_d, "test": test_d}[args.split]
 
+    sessions = [s.strip() for s in args.session.split(",")] if args.session else None
+    if sessions:
+        selected = filter_by_sessions(selected, sessions)
+        print(f"[backtest] session filter={sessions} bars remaining={len(selected)}")
+
     print(f"[backtest] split={args.split} bars={len(selected)}")
 
     env_cfg = EnvConfig(
@@ -106,7 +116,8 @@ def main():
     env = ForexEnv(selected, env_cfg)
     res = run_backtest(model, env, deterministic=not args.stochastic)
     print_report(res)
-    name = args.name or f"backtest_{args.split}"
+    session_tag = ("_" + "_".join(s.lower() for s in sessions)) if sessions else ""
+    name = args.name or f"backtest_{args.split}{session_tag}"
 
     # Save results alongside the model's run directory when possible
     model_p = Path(model_path)

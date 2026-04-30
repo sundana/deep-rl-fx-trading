@@ -38,7 +38,7 @@ train:
   # algo: PPO or RecurrentPPO
   algo: RecurrentPPO
   total_timesteps: 3000000
-  n_envs: 16
+  n_envs: 12
   n_steps: 4096
   batch_size: 256
   n_epochs: 10
