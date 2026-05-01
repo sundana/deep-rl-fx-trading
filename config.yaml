@@ -9,12 +9,12 @@ env:
   window_size: 64
   initial_balance: 10000.0
   # spread + commission per round-trip, in price units (EURUSD pip = 0.0001)
-  transaction_cost_pips: 2.5
+  transaction_cost_pips: 0.1 # 2.5
   pip_size: 0.0001
   # contract size in base units; 1 mini-lot = 10000
   contract_size: 10000
   # fraction of equity risked per position
-  position_size: 0.2
+  position_size: 0.01
   reward_scaling: 100.0
   drawdown_penalty: 0.2
   hold_penalty: 0.05
