@@ -18,24 +18,41 @@ from src.env import EnvConfig, ForexEnv
 from src.model_utils import build_model, load_model
 
 
-def _filter_data_by_sessions(data, sessions: list[str]) -> object:
-    """Filter data to only include bars in specified sessions (UTC).
-    Sessions can overlap — a bar in overlap hours counts for all active sessions."""
-    import datetime as _dt
-    _SESSIONS = {
-        "asia":    (0,  9),
-        "london":  (7,  16),
-        "newyork": (12, 21),
-    }
-    sessions_set = {s.lower() for s in sessions}
-    mask = np.zeros(len(data.timestamps), dtype=bool)
-    for i, ts in enumerate(data.timestamps):
-        dt = _dt.datetime.utcfromtimestamp(int(ts))
-        for session, (start, end) in _SESSIONS.items():
-            if session in sessions_set and start <= dt.hour < end:
-                mask[i] = True
-                break
+_VALID_SESSIONS = {"asia", "london", "newyork"}
+_SESSION_HOURS = {
+    "asia":    (0,  9),
+    "london":  (7,  16),
+    "newyork": (12, 21),
+}
+
+
+def _filter_data_by_sessions(data, sessions: list[str]):
+    """Filter data to only include bars whose UTC hour falls in any of the given sessions.
+
+    Sessions and their UTC hours: asia=00-09, london=07-16, newyork=12-21.
+    Overlap bars (e.g. 07-09 is both Asia and London) are included if either session is selected.
+
+    NOTE: after filtering, consecutive bars in the returned dataset are NOT necessarily
+    15-minute apart — there will be time gaps at session boundaries. ForexEnv treats them
+    as sequential, so positions held across session boundaries span those gaps silently.
+    """
     from src.data_loader import MarketData
+
+    sessions_set = {s.lower() for s in sessions}
+    unknown = sessions_set - _VALID_SESSIONS
+    if unknown:
+        raise ValueError(
+            f"Unknown session(s): {unknown}. Valid options: {_VALID_SESSIONS}"
+        )
+
+    # Vectorised: extract UTC hour from unix-second timestamps
+    hours = (data.timestamps % 86400) // 3600  # avoids slow Python datetime loop
+
+    mask = np.zeros(len(data.timestamps), dtype=bool)
+    for session in sessions_set:
+        start, end = _SESSION_HOURS[session]
+        mask |= (hours >= start) & (hours < end)
+
     return MarketData(
         timestamps=data.timestamps[mask],
         open=data.open[mask],
