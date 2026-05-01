@@ -60,6 +60,30 @@ train:
   # RecurrentPPO-specific (ignored when algo=PPO)
   lstm_hidden_size: 256
   n_lstm_layers: 1
+  # Feature extractor for PPO: mlp (default, current behavior) | patchtst
+  feature_extractor: mlp
+  # Path to pretrained PatchTST encoder .pt; null means random init.
+  # Only used when feature_extractor=patchtst.
+  pretrained_encoder: null
+  freeze_encoder: false
+
+# PatchTST encoder + supervised pretraining config.
+# Only consumed when feature_extractor=patchtst (PPO branch) or by pretrain_patchtst.py.
+patchtst:
+  patch_len: 16
+  stride: 8
+  d_model: 64
+  n_heads: 4
+  depth: 3
+  dropout: 0.1
+  head_dim: 16
+  embed_dim: 128
+  # supervised pretraining hyperparams
+  horizon: 8                # forecast next N close-price log-returns
+  pretrain_epochs: 30
+  pretrain_batch_size: 256
+  pretrain_lr: 3.0e-4
+  pretrain_weight_decay: 1.0e-4
 
 paths:
   model_dir: models

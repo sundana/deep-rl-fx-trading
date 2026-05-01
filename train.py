@@ -16,53 +16,7 @@ from src.backtest import print_report, run_backtest, save_report
 from src.data_loader import load_market_data, split_data, standardize_with
 from src.env import EnvConfig, ForexEnv
 from src.model_utils import build_model, load_model
-
-
-_VALID_SESSIONS = {"asia", "london", "newyork"}
-_SESSION_HOURS = {
-    "asia":    (0,  9),
-    "london":  (7,  16),
-    "newyork": (12, 21),
-}
-
-
-def _filter_data_by_sessions(data, sessions: list[str]):
-    """Filter data to only include bars whose UTC hour falls in any of the given sessions.
-
-    Sessions and their UTC hours: asia=00-09, london=07-16, newyork=12-21.
-    Overlap bars (e.g. 07-09 is both Asia and London) are included if either session is selected.
-
-    NOTE: after filtering, consecutive bars in the returned dataset are NOT necessarily
-    15-minute apart — there will be time gaps at session boundaries. ForexEnv treats them
-    as sequential, so positions held across session boundaries span those gaps silently.
-    """
-    from src.data_loader import MarketData
-
-    sessions_set = {s.lower() for s in sessions}
-    unknown = sessions_set - _VALID_SESSIONS
-    if unknown:
-        raise ValueError(
-            f"Unknown session(s): {unknown}. Valid options: {_VALID_SESSIONS}"
-        )
-
-    # Vectorised: extract UTC hour from unix-second timestamps
-    hours = (data.timestamps % 86400) // 3600  # avoids slow Python datetime loop
-
-    mask = np.zeros(len(data.timestamps), dtype=bool)
-    for session in sessions_set:
-        start, end = _SESSION_HOURS[session]
-        mask |= (hours >= start) & (hours < end)
-
-    return MarketData(
-        timestamps=data.timestamps[mask],
-        open=data.open[mask],
-        high=data.high[mask],
-        low=data.low[mask],
-        close=data.close[mask],
-        volume=data.volume[mask],
-        features=data.features[mask],
-        feature_names=data.feature_names,
-    )
+from src.sessions import filter_data_by_sessions
 
 
 def make_env_factory(data, env_cfg: EnvConfig, seed: int = 0):
@@ -90,10 +44,24 @@ def main():
     parser.add_argument("--resume", type=str, default=None)
     parser.add_argument("--session", type=str, default=None,
                         help="Train on specific sessions only: 'asia', 'london', 'newyork', or comma-separated like 'asia,london'")
+    parser.add_argument("--feature-extractor", choices=["mlp", "patchtst"], default=None,
+                        help="Override train.feature_extractor in config (PPO only).")
+    parser.add_argument("--pretrained-encoder", type=str, default=None,
+                        help="Path to pretrained PatchTST encoder .pt; only used when feature_extractor=patchtst.")
+    parser.add_argument("--freeze-encoder", action="store_true", default=None,
+                        help="Freeze pretrained encoder during PPO training.")
     args = parser.parse_args()
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
+
+    # Apply CLI overrides into the train cfg before downstream consumers read it
+    if args.feature_extractor is not None:
+        cfg["train"]["feature_extractor"] = args.feature_extractor
+    if args.pretrained_encoder is not None:
+        cfg["train"]["pretrained_encoder"] = args.pretrained_encoder
+    if args.freeze_encoder:
+        cfg["train"]["freeze_encoder"] = True
 
     algo = (args.algo or cfg["train"]["algo"]).upper()
     seed = cfg["train"]["seed"]
@@ -108,11 +76,17 @@ def main():
     if args.session:
         sessions = [s.strip().lower() for s in args.session.split(",")]
         print(f"[data] filtering to sessions: {', '.join(sessions)}")
-        train_d = _filter_data_by_sessions(train_d, sessions)
-        val_d = _filter_data_by_sessions(val_d, sessions)
+        train_d = filter_data_by_sessions(train_d, sessions)
+        val_d = filter_data_by_sessions(val_d, sessions)
 
     train_d, val_d = standardize_with(train_d, val_d)
     print(f"[data] train={len(train_d)} bars  val={len(val_d)} bars  features={train_d.features.shape[1]}")
+
+    # Inject runtime values into the patchtst section so build_model() can wire
+    # the encoder shape correctly. Harmless when feature_extractor=mlp.
+    cfg.setdefault("patchtst", {})
+    cfg["patchtst"]["window"] = cfg["env"]["window_size"]
+    cfg["patchtst"]["n_features"] = int(train_d.features.shape[1])
 
     env_cfg = EnvConfig(
         window_size=cfg["env"]["window_size"],
@@ -185,7 +159,10 @@ def main():
         model = load_model(args.resume, algo=algo)
         model.set_env(train_env)
     else:
-        model = build_model(algo, train_env, cfg["train"], str(log_dir))
+        fe = (cfg["train"].get("feature_extractor") or "mlp").lower()
+        if fe == "patchtst":
+            print(f"[train] feature extractor: patchtst  pretrained={cfg['train'].get('pretrained_encoder')}  freeze={bool(cfg['train'].get('freeze_encoder', False))}")
+        model = build_model(algo, train_env, cfg["train"], str(log_dir), full_cfg=cfg)
 
     callbacks = [
         CheckpointCallback(

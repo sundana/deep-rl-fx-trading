@@ -56,8 +56,52 @@ class PolicyRunner:
         return int(action[0])
 
 
-def build_model(algo: str, env, cfg: dict[str, Any], log_dir: str):
-    """Instantiate a fresh PPO or RecurrentPPO from config."""
+_PATCHTST_ENCODER_KEYS = (
+    "window", "n_features", "patch_len", "stride", "d_model",
+    "n_heads", "depth", "dropout", "head_dim", "embed_dim",
+)
+
+
+def _build_patchtst_policy_kwargs(
+    net_arch, train_cfg: dict[str, Any], full_cfg: dict[str, Any] | None
+) -> dict[str, Any]:
+    if not full_cfg or "patchtst" not in full_cfg:
+        raise ValueError(
+            "feature_extractor=patchtst requires a 'patchtst' section in the full config."
+        )
+    from src.patchtst import PatchTSTFeaturesExtractor
+
+    src = full_cfg["patchtst"]
+    cfg_dict = {k: src[k] for k in _PATCHTST_ENCODER_KEYS if k in src}
+    cfg_dict.setdefault("window", full_cfg["env"]["window_size"])
+    if "n_features" not in cfg_dict:
+        raise ValueError(
+            "patchtst.n_features must be set (inject from data.features.shape[1] in caller)."
+        )
+    return dict(
+        net_arch=net_arch,
+        features_extractor_class=PatchTSTFeaturesExtractor,
+        features_extractor_kwargs=dict(
+            patchtst_cfg_dict=cfg_dict,
+            pretrained_path=train_cfg.get("pretrained_encoder"),
+            freeze=bool(train_cfg.get("freeze_encoder", False)),
+        ),
+    )
+
+
+def build_model(
+    algo: str,
+    env,
+    cfg: dict[str, Any],
+    log_dir: str,
+    full_cfg: dict[str, Any] | None = None,
+):
+    """Instantiate a fresh PPO or RecurrentPPO from config.
+
+    `full_cfg` is the full yaml dict (for sections beyond `train`, e.g. `patchtst`).
+    Optional for backwards compatibility — only required when using a non-MLP
+    feature extractor.
+    """
     common: dict[str, Any] = dict(
         env=env,
         learning_rate=cfg["learning_rate"],
@@ -75,15 +119,28 @@ def build_model(algo: str, env, cfg: dict[str, Any], log_dir: str):
         device=cfg["device"],
         verbose=1,
     )
+    feature_extractor = (cfg.get("feature_extractor") or "mlp").lower()
+
     if algo.upper() == "PPO":
         from stable_baselines3 import PPO
         net_arch = cfg.get("net_arch", dict(pi=[256, 256], vf=[256, 256]))
+        if feature_extractor == "mlp":
+            policy_kwargs = dict(net_arch=net_arch)
+        elif feature_extractor == "patchtst":
+            policy_kwargs = _build_patchtst_policy_kwargs(net_arch, cfg, full_cfg)
+        else:
+            raise ValueError(f"Unknown feature_extractor: {feature_extractor!r}")
         return PPO(
             policy="MlpPolicy",
-            policy_kwargs=dict(net_arch=net_arch),
+            policy_kwargs=policy_kwargs,
             **common,
         )
     elif algo.upper() == "RECURRENTPPO":
+        if feature_extractor != "mlp":
+            raise ValueError(
+                f"feature_extractor={feature_extractor!r} not supported with RecurrentPPO. "
+                "Use algo=PPO instead."
+            )
         from sb3_contrib import RecurrentPPO
         net_arch = cfg.get("net_arch", dict(pi=[256], vf=[256]))
         return RecurrentPPO(
