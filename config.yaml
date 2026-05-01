@@ -1,93 +1,93 @@
 data:
-  csv_path: data/EURUSD_M15.csv
-  separator: ","
-  train_split: 0.7
-  val_split: 0.15
-  # remaining 0.15 is held-out test for backtest
+    csv_path: data/EURUSD_M15.csv
+    separator: ","
+    train_split: 0.7
+    val_split: 0.15
+    # remaining 0.15 is held-out test for backtest
 
 env:
-  window_size: 64
-  initial_balance: 10000.0
-  # spread + commission per round-trip, in price units (EURUSD pip = 0.0001)
-  transaction_cost_pips: 0.1 # 2.5
-  pip_size: 0.0001
-  # contract size in base units; 1 mini-lot = 10000
-  contract_size: 10000
-  # fraction of equity risked per position
-  position_size: 0.01
-  reward_scaling: 100.0
-  drawdown_penalty: 0.2
-  hold_penalty: 0.05
-  # kill episode if drawdown from peak exceeds 20% (trains capital-preservation reflex)
-  max_drawdown_pct: 0.20
-  # per-trade penalty discourages overtrading
-  trade_penalty: 0.2
-  # minimum bars to hold before exiting without penalty (~2h on M15)
-  min_hold_bars: 8
-  # extra penalty for exiting before min_hold_bars (transaction cost hasn't been amortized)
-  early_exit_penalty: 0.5
-  # per-bar bonus for holding a winning open position (trains "let winners run")
-  hold_bonus_per_bar: 0.015
-  # rolling Sharpe reward component (encourages consistent, low-variance returns)
-  sharpe_coef: 0.3
-  sharpe_window: 50
-  # one-time bonus when a position is closed with positive realized PnL
-  close_profit_bonus: 1.0
+    window_size: 64
+    initial_balance: 10000.0
+    # spread + commission per round-trip, in price units (EURUSD pip = 0.0001)
+    transaction_cost_pips: 0.1 # 2.5
+    pip_size: 0.0001
+    # contract size in base units; 1 mini-lot = 10000
+    contract_size: 10000
+    # fraction of equity risked per position
+    position_size: 0.01
+    reward_scaling: 100.0
+    drawdown_penalty: 0.2
+    hold_penalty: 0.05
+    # kill episode if drawdown from peak exceeds 20% (trains capital-preservation reflex)
+    max_drawdown_pct: 0.20
+    # per-trade penalty discourages overtrading
+    trade_penalty: 0.2
+    # minimum bars to hold before exiting without penalty (~2h on M15)
+    min_hold_bars: 8
+    # extra penalty for exiting before min_hold_bars (transaction cost hasn't been amortized)
+    early_exit_penalty: 0.5
+    # per-bar bonus for holding a winning open position (trains "let winners run")
+    hold_bonus_per_bar: 0.015
+    # rolling Sharpe reward component (encourages consistent, low-variance returns)
+    sharpe_coef: 0.3
+    sharpe_window: 50
+    # one-time bonus when a position is closed with positive realized PnL
+    close_profit_bonus: 1.0
 
 train:
-  # algo: PPO or RecurrentPPO
-  algo: PPO
-  total_timesteps: 1000000
-  n_envs: 12
-  n_steps: 4096
-  batch_size: 256
-  n_epochs: 10
-  learning_rate: 1.0e-4
-  gamma: 0.97
-  gae_lambda: 0.95
-  clip_range: 0.1
-  ent_coef: 0.001
-  vf_coef: 0.5
-  max_grad_norm: 0.5
-  device: cpu
-  seed: 42
-  eval_freq: 20000
-  save_freq: 50000
-  # Network architecture: keys pi (policy) and vf (value function)
-  net_arch:
-    pi: [128, 128]
-    vf: [128, 128]
-  # RecurrentPPO-specific (ignored when algo=PPO)
-  lstm_hidden_size: 128
-  n_lstm_layers: 1
-  # Feature extractor for PPO: mlp (default, current behavior) | patchtst
-  feature_extractor: mlp
-  # Path to pretrained PatchTST encoder .pt; null means random init.
-  # Only used when feature_extractor=patchtst.
-  pretrained_encoder: null
-  freeze_encoder: false
+    # algo: PPO or RecurrentPPO
+    algo: PPO
+    total_timesteps: 2000000
+    n_envs: 12
+    n_steps: 4096
+    batch_size: 512
+    n_epochs: 5
+    learning_rate: 3.0e-5
+    gamma: 0.97
+    gae_lambda: 0.95
+    clip_range: 0.1
+    ent_coef: 0.005
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    device: cpu
+    seed: 42
+    eval_freq: 20000
+    save_freq: 50000
+    # Network architecture: keys pi (policy) and vf (value function)
+    net_arch:
+        pi: [64, 64]
+        vf: [64, 64]
+    # RecurrentPPO-specific (ignored when algo=PPO)
+    lstm_hidden_size: 128
+    n_lstm_layers: 1
+    # Feature extractor for PPO: mlp (default, current behavior) | patchtst
+    feature_extractor: patchtst
+    # Path to pretrained PatchTST encoder .pt; null means random init.
+    # Only used when feature_extractor=patchtst.
+    pretrained_encoder: models/patchtst/PatchTST_7/encoder_best.pt
+    freeze_encoder: false
 
 # PatchTST encoder + supervised pretraining config.
 # Only consumed when feature_extractor=patchtst (PPO branch) or by pretrain_patchtst.py.
 patchtst:
-  patch_len: 16
-  stride: 8
-  d_model: 64
-  n_heads: 4
-  depth: 3
-  dropout: 0.1
-  head_dim: 16
-  embed_dim: 128
-  # supervised pretraining hyperparams
-  horizon: 8                # forecast next N close-price log-returns
-  pretrain_epochs: 30
-  pretrain_batch_size: 256
-  pretrain_lr: 3.0e-4
-  pretrain_weight_decay: 1.0e-4
+    patch_len: 16
+    stride: 8
+    d_model: 64
+    n_heads: 4
+    depth: 3
+    dropout: 0.1
+    head_dim: 16
+    embed_dim: 128
+    # supervised pretraining hyperparams
+    horizon: 8 # forecast next N close-price log-returns
+    pretrain_epochs: 50
+    pretrain_batch_size: 256
+    pretrain_lr: 3.0e-4
+    pretrain_weight_decay: 1.0e-4
 
 paths:
-  model_dir: models
-  log_dir: logs
-  results_dir: results
-  best_model: models/best_model.zip
-  final_model: models/final_model.zip
+    model_dir: models
+    log_dir: logs
+    results_dir: results
+    best_model: models/best_model.zip
+    final_model: models/final_model.zip
