@@ -85,7 +85,7 @@ def main():
     val_ds = ForecastDataset(val_d, window=window, horizon=horizon)
     pin = device != "cpu"
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=False,
+        train_ds, batch_size=batch_size, shuffle=True,
         num_workers=args.num_workers, drop_last=False, pin_memory=pin,
     )
     val_loader = DataLoader(
