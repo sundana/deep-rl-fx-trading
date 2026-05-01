@@ -59,7 +59,7 @@ def main():
     lr = args.lr if args.lr is not None else pcfg.get("pretrain_lr", 3e-4)
     weight_decay = pcfg.get("pretrain_weight_decay", 1e-4)
     horizon = args.horizon or pcfg.get("horizon", 8)
-    device = args.device or cfg["train"].get("device", "cpu")
+    device = args.device or cfg["train"].get("device", "cuda")
     window = cfg["env"]["window_size"]
 
     print("[data] loading market data…")
@@ -85,8 +85,8 @@ def main():
     val_ds = ForecastDataset(val_d, window=window, horizon=horizon)
     pin = device != "cpu"
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True,
-        num_workers=args.num_workers, drop_last=True, pin_memory=pin,
+        train_ds, batch_size=batch_size, shuffle=False,
+        num_workers=args.num_workers, drop_last=False, pin_memory=pin,
     )
     val_loader = DataLoader(
         val_ds, batch_size=batch_size, shuffle=False,

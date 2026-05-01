@@ -36,8 +36,8 @@ env:
 
 train:
   # algo: PPO or RecurrentPPO
-  algo: RecurrentPPO
-  total_timesteps: 3000000
+  algo: PPO
+  total_timesteps: 1000000
   n_envs: 12
   n_steps: 4096
   batch_size: 256
@@ -55,10 +55,10 @@ train:
   save_freq: 50000
   # Network architecture: keys pi (policy) and vf (value function)
   net_arch:
-    pi: [256, 256]
-    vf: [256, 256]
+    pi: [128, 128]
+    vf: [128, 128]
   # RecurrentPPO-specific (ignored when algo=PPO)
-  lstm_hidden_size: 256
+  lstm_hidden_size: 128
   n_lstm_layers: 1
   # Feature extractor for PPO: mlp (default, current behavior) | patchtst
   feature_extractor: mlp
