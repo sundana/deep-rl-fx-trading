@@ -20,6 +20,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from src.data_loader import load_market_data, split_data, standardize_with
 from src.patchtst import PatchTSTConfig, PatchTSTForecaster, save_encoder
+from src.patchtst.pretrained import save_forecaster
 from src.patchtst.dataset import ForecastDataset
 from src.sessions import filter_data_by_sessions
 
@@ -117,6 +118,8 @@ def main():
     best_val = float("inf")
     out_path = Path(args.output) if args.output else (model_dir / "encoder_best.pt")
     last_path = model_dir / "encoder_last.pt"
+    forecaster_best_path = out_path.with_name("forecaster_best.pt")
+    forecaster_last_path = last_path.with_name("forecaster_last.pt")
 
     for epoch in range(1, epochs + 1):
         model.train()
@@ -154,12 +157,15 @@ def main():
               f"val_loss={val_loss:.6e}  ({dt:.1f}s){flag}")
 
         save_encoder(model.encoder, ptst_cfg, last_path)
+        save_forecaster(model, ptst_cfg, horizon, forecaster_last_path)
         if improved:
             save_encoder(model.encoder, ptst_cfg, out_path)
+            save_forecaster(model, ptst_cfg, horizon, forecaster_best_path)
 
     print(f"[pretrain] done. best val_loss={best_val:.6e}")
-    print(f"[pretrain] best encoder -> {out_path}")
-    print(f"[pretrain] last encoder -> {last_path}")
+    print(f"[pretrain] best encoder    -> {out_path}")
+    print(f"[pretrain] best forecaster -> {forecaster_best_path}")
+    print(f"[pretrain] last encoder    -> {last_path}")
     writer.close()
 
 
