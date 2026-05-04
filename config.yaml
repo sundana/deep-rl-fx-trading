@@ -64,8 +64,8 @@ train:
     feature_extractor: patchtst
     # Path to pretrained PatchTST encoder .pt; null means random init.
     # Only used when feature_extractor=patchtst.
-    pretrained_encoder: models/patchtst/PatchTST_7/encoder_best.pt
-    freeze_encoder: false
+    pretrained_encoder: models/patchtst/PatchTST_8/encoder_best.pt
+    freeze_encoder: true
 
 # PatchTST encoder + supervised pretraining config.
 # Only consumed when feature_extractor=patchtst (PPO branch) or by pretrain_patchtst.py.
