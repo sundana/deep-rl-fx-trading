@@ -11,7 +11,9 @@
       "Bash(pip install *)",
       "Bash(conda run *)",
       "Bash(python3 -c ' *)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(~/miniconda3/envs/gym-sb3/bin/python run_backtest.py --algo PPO --model models/PPO_8/best_model.zip --split val)",
+      "Bash(~/miniconda3/envs/gym-sb3/bin/python *)"
     ]
   }
 }

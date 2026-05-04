@@ -96,6 +96,7 @@ class BacktestResult:
     timestamps: np.ndarray
     trades: list[dict]
     actions: np.ndarray
+    action_counts: dict = field(default_factory=dict)      # "SHORT"/"FLAT"/"LONG" -> count
     trades_per_day: dict = field(default_factory=dict)     # "Monday" … "Friday" -> count
     trades_per_session: dict = field(default_factory=dict) # session name -> count
 
@@ -171,6 +172,14 @@ def run_backtest(model, env: ForexEnv, deterministic: bool = True) -> BacktestRe
         for session in _session_of_hour(dt.hour):
             trades_per_session[session] += 1
 
+    action_arr = np.array(actions, dtype=np.int64)
+    total_actions = len(action_arr) or 1
+    action_counts = {
+        "SHORT": int(np.sum(action_arr == 0)),
+        "FLAT":  int(np.sum(action_arr == 1)),
+        "LONG":  int(np.sum(action_arr == 2)),
+    }
+
     return BacktestResult(
         total_return=float(total_return),
         cagr=float(cagr),
@@ -189,7 +198,8 @@ def run_backtest(model, env: ForexEnv, deterministic: bool = True) -> BacktestRe
         equity_curve=equity,
         timestamps=timestamps,
         trades=trades,
-        actions=np.array(actions, dtype=np.int64),
+        actions=action_arr,
+        action_counts=action_counts,
         trades_per_day=dict(sorted(trades_per_day.items())),
         trades_per_session=trades_per_session,
     )
@@ -252,6 +262,12 @@ def print_report(result: BacktestResult) -> None:
     print(f"Profit factor:   {s['profit_factor']:.3f}")
     print(f"Avg trade PnL:   {s['avg_trade_pnl']:.4f}")
     print(f"# trades:        {s['n_trades']}")
+
+    print("\n--- Action Distribution ---")
+    total_actions = sum(result.action_counts.values()) or 1
+    for action_name, count in result.action_counts.items():
+        pct = count / total_actions
+        print(f"  {action_name:<6}: {count:>6}  ({pct:.1%})")
 
     print("\n--- Trades per Day of Week ---")
     if result.n_trades:

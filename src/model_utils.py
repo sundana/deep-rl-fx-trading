@@ -6,15 +6,15 @@ from typing import Any
 import numpy as np
 
 
-def load_model(path: str, algo: str = "PPO"):
+def load_model(path: str, algo: str = "PPO", device: str = "cpu"):
     """Load a saved model; detects class from algo name."""
     algo = algo.upper()
     if algo == "PPO":
         from stable_baselines3 import PPO
-        return PPO.load(path)
+        return PPO.load(path, device=device)
     elif algo == "RECURRENTPPO":
         from sb3_contrib import RecurrentPPO
-        return RecurrentPPO.load(path)
+        return RecurrentPPO.load(path, device=device)
     raise ValueError(f"Unknown algo '{algo}'. Choose 'PPO' or 'RecurrentPPO'.")
 
 

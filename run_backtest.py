@@ -44,6 +44,7 @@ def main():
         help="Comma-separated sessions to backtest: asia, london, newyork. "
              "E.g. --session asia  or  --session asia,london",
     )
+    parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -60,8 +61,8 @@ def main():
         found = _latest_run_best_model(model_dir, algo)
         model_path = str(found) if found else cfg["paths"].get("best_model", "models/best_model.zip")
 
-    print(f"[backtest] loading {algo} model from {model_path}")
-    model = load_model(model_path, algo=algo)
+    print(f"[backtest] loading {algo} model from {model_path}  device={args.device}")
+    model = load_model(model_path, algo=algo, device=args.device)
 
     data = load_market_data(cfg["data"]["csv_path"], separator=cfg["data"]["separator"])
     train_d, val_d, test_d = split_data(
