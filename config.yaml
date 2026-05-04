@@ -1,8 +1,8 @@
 data:
     csv_path: data/EURUSD_M15.csv
     separator: ","
-    train_split: 0.7
-    val_split: 0.15
+    train_split: 0.85
+    val_split: 0.10
     # remaining 0.15 is held-out test for backtest
 
 env:
@@ -15,39 +15,39 @@ env:
     contract_size: 10000
     # fraction of equity risked per position
     position_size: 0.01
-    reward_scaling: 100.0
+    reward_scaling: 10.0
     drawdown_penalty: 0.1
     hold_penalty: 0.0
     # kill episode if drawdown from peak exceeds 20% (trains capital-preservation reflex)
     max_drawdown_pct: 0.20
     # per-trade penalty discourages overtrading
-    trade_penalty: 0.02
+    trade_penalty: 0.05
     # minimum bars to hold before exiting without penalty (~2h on M15)
-    min_hold_bars: 0
+    min_hold_bars: 4
     # extra penalty for exiting before min_hold_bars (transaction cost hasn't been amortized)
-    early_exit_penalty: 0.0
+    early_exit_penalty: 0.1
     # per-bar bonus for holding a winning open position (trains "let winners run")
     hold_bonus_per_bar: 0.0
     # rolling Sharpe reward component (encourages consistent, low-variance returns)
-    sharpe_coef: 0.0
+    sharpe_coef: 0.15
     sharpe_window: 50
     # one-time bonus when a position is closed with positive realized PnL
-    close_profit_bonus: 0.0
+    close_profit_bonus: 0.3
 
 train:
     # algo: PPO or RecurrentPPO
     algo: PPO
     total_timesteps: 2000000
     n_envs: 12
-    n_steps: 4096
+    n_steps: 8192
     batch_size: 512
     n_epochs: 5
     learning_rate: 3.0e-5
     gamma: 0.97
     gae_lambda: 0.95
     clip_range: 0.2
-    ent_coef: 0.02
-    vf_coef: 0.5
+    ent_coef: 0.05
+    vf_coef: 0.8
     max_grad_norm: 0.5
     device: cuda
     seed: 42
@@ -65,7 +65,7 @@ train:
     # Path to pretrained PatchTST encoder .pt; null means random init.
     # Only used when feature_extractor=patchtst.
     pretrained_encoder: models/patchtst/PatchTST_8/encoder_best.pt
-    freeze_encoder: true
+    freeze_encoder: false
 
 # PatchTST encoder + supervised pretraining config.
 # Only consumed when feature_extractor=patchtst (PPO branch) or by pretrain_patchtst.py.
