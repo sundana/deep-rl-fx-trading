@@ -49,8 +49,8 @@ train:
     ent_coef: 0.05
     vf_coef: 0.8
     max_grad_norm: 0.5
-    device: cuda
-    seed: 42
+    device: cpu
+    seed: 2388
     eval_freq: 20000
     save_freq: 50000
     # Network architecture: keys pi (policy) and vf (value function)
@@ -65,7 +65,7 @@ train:
     # Path to pretrained PatchTST encoder .pt; null means random init.
     # Only used when feature_extractor=patchtst.
     pretrained_encoder: models/patchtst/PatchTST_8/encoder_best.pt
-    freeze_encoder: false
+    freeze_encoder: true
 
 # PatchTST encoder + supervised pretraining config.
 # Only consumed when feature_extractor=patchtst (PPO branch) or by pretrain_patchtst.py.

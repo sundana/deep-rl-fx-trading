@@ -38,7 +38,7 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 warnings.filterwarnings("ignore", category=UserWarning, module="stable_baselines3")
 
 # Number of parallel envs used during each trial (kept fixed to reduce noise)
-N_TUNE_ENVS_PPO = 4
+N_TUNE_ENVS_PPO = 12
 N_TUNE_ENVS_RPPO = 2  # bumped from 1; RecurrentPPO handles n_envs > 1 fine
 
 
@@ -163,19 +163,28 @@ def make_objective(
     env_cfg_dict: dict,
     seed: int,
     n_timesteps: int,
+    fixed_params: dict[str, Any] | None = None,
 ) -> Any:
     n_envs = N_TUNE_ENVS_PPO if algo == "PPO" else N_TUNE_ENVS_RPPO
 
     def objective(trial: optuna.Trial) -> float:
-        trial_seed = seed + trial.number
+        if fixed_params is not None:
+            # Single-variable mode: only suggest seed, fix everything else
+            trial_seed = trial.suggest_int("seed", 0, 10_000)
+            params = dict(fixed_params)
+            # net_arch can be a string key (from JSON) or already a dict (from config.yaml)
+            if isinstance(params.get("net_arch"), str):
+                params["net_arch"] = _NET_ARCH_MAP[params["net_arch"]]
+        else:
+            trial_seed = seed + trial.number
+            params = (
+                sample_ppo_params(trial, n_envs)
+                if algo == "PPO"
+                else sample_rppo_params(trial, n_envs)
+            )
+
         np.random.seed(trial_seed)
         torch.manual_seed(trial_seed)
-
-        params = (
-            sample_ppo_params(trial, n_envs)
-            if algo == "PPO"
-            else sample_rppo_params(trial, n_envs)
-        )
 
         ep_len = min(8_000, len(train_d) - env_cfg_dict["window_size"] - 2)
         env_cfg = EnvConfig(
@@ -322,14 +331,50 @@ def main() -> None:
         help="Optional SQLite URL for persistence, e.g. sqlite:///results/tuning/tune.db"
     )
     parser.add_argument("--out-dir", default="results/tuning")
+    # os.cpu_count() may return None on some platforms, guard against that
+    _cpu_count = os.cpu_count() or 1
     parser.add_argument(
-        "--n-jobs", type=int, default=min(4, max(1, os.cpu_count() // 5)),
+        "--n-jobs", type=int, default=min(4, max(1, _cpu_count // 5)),
         help="Parallel Optuna trials. Default auto-scales to ~1/5 of CPU cores."
+    )
+    parser.add_argument(
+        "--fixed-params", default=None,
+        help="Path to best_params_*.json. Fixes all hyperparams and tunes seed only."
+    )
+    parser.add_argument(
+        "--use-config-params", action="store_true",
+        help="Use hyperparameters from config.yaml [train] section as fixed params, "
+             "then tune seed only. Overrides --fixed-params."
     )
     args = parser.parse_args()
 
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
+
+    fixed_params: dict[str, Any] | None = None
+    if args.use_config_params:
+        t = cfg["train"]
+        fixed_params = {
+            "learning_rate": t["learning_rate"],
+            "n_steps":       t["n_steps"],
+            "batch_size":    t["batch_size"],
+            "n_epochs":      t["n_epochs"],
+            "gamma":         t["gamma"],
+            "gae_lambda":    t["gae_lambda"],
+            "clip_range":    t["clip_range"],
+            "ent_coef":      t["ent_coef"],
+            "vf_coef":       t["vf_coef"],
+            "max_grad_norm": t["max_grad_norm"],
+            "net_arch":      t["net_arch"],          # already a dict {pi, vf}
+            "lstm_hidden_size": t.get("lstm_hidden_size", 128),
+            "n_lstm_layers":    t.get("n_lstm_layers", 1),
+        }
+        print(f"[tune] single-variable mode: params loaded from config.yaml [train], tuning seed only.")
+    elif args.fixed_params:
+        with open(args.fixed_params) as f:
+            payload = json.load(f)
+        fixed_params = payload["params"]
+        print(f"[tune] single-variable mode: fixing all params from {args.fixed_params}, tuning seed only.")
 
     seed = cfg["train"]["seed"]
     np.random.seed(seed)
@@ -384,6 +429,7 @@ def main() -> None:
                 env_cfg_dict=cfg["env"],
                 seed=seed,
                 n_timesteps=args.timesteps,
+                fixed_params=fixed_params,
             ),
             n_trials=remaining,
             n_jobs=args.n_jobs,
